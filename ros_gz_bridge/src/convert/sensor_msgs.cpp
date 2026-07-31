@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cstring>
 #include <limits>
 
 #include "convert/utils.hpp"
@@ -168,11 +169,15 @@ convert_gz_to_ros(
   ros_msg.step = ros_msg.width * num_channels * octets_per_channel;
 
   auto count = ros_msg.step * ros_msg.height;
-  ros_msg.data.resize(ros_msg.step * ros_msg.height);
-  std::copy(
-    gz_msg.data().begin(),
-    gz_msg.data().begin() + count,
-    ros_msg.data.begin());
+  ros_msg.data.resize(count);
+
+  // gz_msg.data() is a std::string (protobuf bytes) whose element type is char,
+  // while ros_msg.data is a std::vector<uint8_t>. The differing element types
+  // defeat the memmove specialisation of std::copy, leaving a byte-by-byte
+  // loop on every frame. memcpy is safe here: both are contiguous 1-byte
+  // buffers, and it matches what the PointCloud2 converter in this same file
+  // already does.
+  std::memcpy(ros_msg.data.data(), gz_msg.data().data(), count);
 }
 
 template<>
